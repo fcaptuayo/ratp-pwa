@@ -3,7 +3,7 @@
 
     var app = {
         isLoading: true,
-        nameCache: "timetables-cache",
+        cacheName: "timetables-cache",
         visibleCards: {},
         selectedTimetables: [],
         spinner: document.querySelector('.loader'),
@@ -121,9 +121,19 @@
         });
     };
 
+    app.registerServiceWorker = function () {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker
+                .register('./service-worker.js')
+                .then(function () {
+                    console.log('Service Worker Registered');
+                });
+        }
+    };
+
     app.saveScheduleTimetables = function () {
-        localforage.setItem(app.nameCache, JSON.stringify(app.selectedTimetables));
-        console.log(localforage.getItem(app.nameCache));
+        localforage.setItem(app.cacheName, JSON.stringify(app.selectedTimetables));
+        console.log(localforage.getItem(app.cacheName));
     };
 
     app.getScheduleDefault = function () {
@@ -136,7 +146,7 @@
 
 
     app.getScheduleFirstRequest = function () {
-        localforage.getItem(app.nameCache).then(function (timetablesCache) {
+        localforage.getItem(app.cacheName).then(function (timetablesCache) {
             app.selectedTimetables = timetablesCache;
             if (app.selectedTimetables) {
                 console.log("element not empty");
@@ -159,6 +169,27 @@
         console.log("getSchedule-001");
         var url = 'https://api-ratp.pierre-grimaud.fr/v3/schedules/' + key;
 
+        // TODO add cache logic here
+        if ('caches' in window) {
+            /*
+             * Check if the service worker has already cached this city's weather
+             * data. If the service worker has the data, then display the cached
+             * data while the app fetches the latest data.
+             */
+            caches.match(url).then(function (response) {
+                if (response) {
+                    response.json().then(function updateFromCache(json) {
+                        var results = {};
+                        result.key = key;
+                        result.label = label;
+                        result.created = response._metadata.date;
+                        result.schedules = response.result.schedules;
+                        app.updateTimetableCard(result);
+                    });
+                }
+            });
+        }
+
         var request = new XMLHttpRequest();
         request.onreadystatechange = function () {
             if (request.readyState === XMLHttpRequest.DONE) {
@@ -171,6 +202,9 @@
                     result.schedules = response.result.schedules;
                     app.updateTimetableCard(result);
                 }
+            } else {
+                // Return the initial weather forecast since no data is available.
+                app.updateTimetableCard(initialStationTimetable);
             }
         };
         request.open('GET', url);
@@ -227,5 +261,6 @@
 
     app.configurationIndexedDB();
     app.getScheduleFirstRequest();
+    app.registerServiceWorker();
 
 })();
