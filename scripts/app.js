@@ -3,6 +3,7 @@
 
     var app = {
         isLoading: true,
+        nameCache: "timetables-cache",
         visibleCards: {},
         selectedTimetables: [],
         spinner: document.querySelector('.loader'),
@@ -41,6 +42,7 @@
         app.getSchedule(key, label);
         app.selectedTimetables.push({key: key, label: label});
         app.toggleAddDialog(false);
+        app.saveScheduleTimetables();
     });
 
     document.getElementById('butAddCancel').addEventListener('click', function () {
@@ -68,6 +70,7 @@
     // doesn't already exist, it's cloned from the template.
 
     app.updateTimetableCard = function (data) {
+        console.log("start001");
         var key = data.key;
         var dataLastUpdated = new Date(data.created);
         var schedules = data.schedules;
@@ -88,10 +91,10 @@
         card.querySelector('.card-last-updated').textContent = data.created;
 
         var scheduleUIs = card.querySelectorAll('.schedule');
-        for(var i = 0; i<4; i++) {
+        for (var i = 0; i < 4; i++) {
             var schedule = schedules[i];
             var scheduleUI = scheduleUIs[i];
-            if(schedule && scheduleUI) {
+            if (schedule && scheduleUI) {
                 scheduleUI.querySelector('.message').textContent = schedule.message;
             }
         }
@@ -101,6 +104,7 @@
             app.container.removeAttribute('hidden');
             app.isLoading = false;
         }
+        console.log("start002");
     };
 
     /*****************************************************************************
@@ -109,8 +113,50 @@
      *
      ****************************************************************************/
 
+    app.configurationIndexedDB = function () {
+        console.log("Initialize config IndexedDB");
+        localforage.config({
+            driver: localforage.IndexedDB,
+            name: 'cache-bd'
+        });
+    };
+
+    app.saveScheduleTimetables = function () {
+        localforage.setItem(app.nameCache, JSON.stringify(app.selectedTimetables));
+        console.log(localforage.getItem(app.nameCache));
+    };
+
+    app.getScheduleDefault = function () {
+        app.getSchedule('metros/1/bastille/A', 'Bastille, Direction La Défense');
+        app.selectedTimetables = [
+            {key: initialStationTimetable.key, label: initialStationTimetable.label}
+        ];
+        app.saveScheduleTimetables();
+    };
+
+
+    app.getScheduleFirstRequest = function () {
+        localforage.getItem(app.nameCache).then(function (timetablesCache) {
+            app.selectedTimetables = timetablesCache;
+            if (app.selectedTimetables) {
+                console.log("element not empty");
+                app.selectedTimetables = JSON.parse(app.selectedTimetables);
+                app.selectedTimetables.forEach(function (timetable) {
+                    console.log("timetable" + timetable.key);
+                    app.getSchedule(timetable.key, timetable.label);
+                });
+            } else {
+                console.log("element empty");
+                app.getScheduleDefault();
+            }
+        }).catch(function (err) {
+            app.getScheduleDefault();
+        });
+
+    };
 
     app.getSchedule = function (key, label) {
+        console.log("getSchedule-001");
         var url = 'https://api-ratp.pierre-grimaud.fr/v3/schedules/' + key;
 
         var request = new XMLHttpRequest();
@@ -125,19 +171,18 @@
                     result.schedules = response.result.schedules;
                     app.updateTimetableCard(result);
                 }
-            } else {
-                // Return the initial weather forecast since no data is available.
-                app.updateTimetableCard(initialStationTimetable);
             }
         };
         request.open('GET', url);
         request.send();
+        console.log("getSchedule-002");
     };
 
     // Iterate all of the cards and attempt to get the latest timetable data
     app.updateSchedules = function () {
         var keys = Object.keys(app.visibleCards);
         keys.forEach(function (key) {
+            console.log("Request-301");
             app.getSchedule(key);
         });
     };
@@ -180,8 +225,7 @@
      *   SimpleDB (https://gist.github.com/inexorabletash/c8069c042b734519680c)
      ************************************************************************/
 
-    app.getSchedule('metros/1/bastille/A', 'Bastille, Direction La Défense');
-    app.selectedTimetables = [
-        {key: initialStationTimetable.key, label: initialStationTimetable.label}
-    ];
+    app.configurationIndexedDB();
+    app.getScheduleFirstRequest();
+
 })();
