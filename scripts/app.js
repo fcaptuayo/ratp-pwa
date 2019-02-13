@@ -2,6 +2,7 @@
     'use strict';
 
     var app = {
+        isLoadingFirst: true,
         isLoading: true,
         cacheName: "timetables-cache",
         visibleCards: {},
@@ -16,7 +17,7 @@
     /*****************************************************************************
      *
      * Event listeners for UI elements
-     *
+     *app.isLoading
      ****************************************************************************/
 
     document.getElementById('butRefresh').addEventListener('click', function () {
@@ -100,6 +101,7 @@
         }
 
         if (app.isLoading) {
+            window.cardLoadTime = performance.now();
             app.spinner.setAttribute('hidden', true);
             app.container.removeAttribute('hidden');
             app.isLoading = false;
@@ -201,6 +203,10 @@
                     result.created = response._metadata.date;
                     result.schedules = response.result.schedules;
                     app.updateTimetableCard(result);
+                    if(app.isLoadingFirst){
+                        window.cardLoadTimeNew = performance.now();
+                        app.isLoadingFirst = false;
+                    }
                 }
             } else {
                 // Return the initial weather forecast since no data is available.
